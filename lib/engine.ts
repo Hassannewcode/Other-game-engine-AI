@@ -50,6 +50,18 @@ export const getEngineScript = (workspaceType: WorkspaceType): string => {
             originalConsole.info.apply(console, args);
             postLog('info', args);
         };
+
+        // Global error handlers to catch anything that slips through
+        window.addEventListener('error', (event) => {
+            const errorMessage = event.error ? event.error.stack : \`\${event.message} at \${event.filename}:\${event.lineno}\`;
+            postLog('error', [errorMessage]);
+            event.preventDefault(); // Prevent duplicate logging in the browser's console
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+            const errorMessage = event.reason instanceof Error ? event.reason.stack : \`Unhandled Promise Rejection: \${String(event.reason)}\`;
+            postLog('error', [errorMessage]);
+        });
     })();
     `;
 
