@@ -220,19 +220,12 @@ export const createChatFromWorkspace = (workspace: Workspace): Chat => {
 
     const apiHistory = [];
     
-    // Pass the file context in the first user message of the history for the AI to have full context.
-    const fileContext = `You have created a ${workspace.type} project. The user is now going to give you instructions. Here is the code you previously generated, which represents the current state of the project:`;
-    apiHistory.push({
-        role: 'user',
-        parts: [{ text: fileContext }],
-    });
-    
+    // Reconstruct the chat history for the AI. The model's fullResponse contains
+    // the JSON with the file state from that turn, which is how it gets context.
     for (const msg of workspace.chatHistory) {
         if (msg.role === 'user') {
             apiHistory.push({ role: 'user', parts: [{ text: msg.text }] });
         } else if (msg.role === 'model') {
-            // The fullResponse contains the JSON with the complete file set,
-            // so the AI sees the result of its last action.
             apiHistory.push({ role: 'model', parts: [{ text: (msg as ModelChatMessage).fullResponse }] });
         }
     }
