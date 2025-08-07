@@ -1,9 +1,8 @@
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import JSZip from 'jszip';
-import CodeIcon from './icons/CodeIcon';
-import PlayIcon from './icons/PlayIcon';
 import AIIcon from './icons/AIIcon';
+import PlayIcon from './icons/PlayIcon';
 import GamePreview from './GamePreview';
 import ChatPanel from './ChatPanel';
 import { Workspace, FileEntry, LogEntry } from '../types';
@@ -16,6 +15,7 @@ import ArrowLeftIcon from './icons/ArrowLeftIcon';
 import FileExplorer from './FileExplorer';
 import PanelLeftIcon from './icons/PanelLeftIcon';
 import Console from './Console';
+import TerminalIcon from './icons/TerminalIcon';
 
 
 declare global {
@@ -40,6 +40,7 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, onGenerat
     const [isChatVisible, setChatVisible] = useState(true);
     const [isExplorerVisible, setExplorerVisible] = useState(true);
     const [isPreviewVisible, setPreviewVisible] = useState(true);
+    const [isConsoleVisible, setConsoleVisible] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0);
     const previewContainerRef = useRef<HTMLDivElement>(null);
     const codeBlockRef = useRef<HTMLElement>(null);
@@ -193,9 +194,10 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, onGenerat
                      </div>
                     <div className="flex items-center gap-1">
                         <button onClick={handleDownload} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10" aria-label="Download Project"><DownloadIcon className="w-5 h-5" /></button>
-                         <button onClick={handleRefresh} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10" aria-label="Refresh Preview"><RefreshIcon className="w-5 h-5" /></button>
+                        <button onClick={handleRefresh} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10" aria-label="Refresh Preview"><RefreshIcon className="w-5 h-5" /></button>
                         <button onClick={handleToggleFullscreen} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10" aria-label="Toggle Fullscreen"><FullscreenIcon className="w-5 h-5" /></button>
-                         <button onClick={() => setPreviewVisible(!isPreviewVisible)} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10" aria-label={isPreviewVisible ? 'Hide Preview' : 'Show Preview'}><PlayIcon className={`w-5 h-5 transition-colors ${isPreviewVisible ? 'text-blue-500' : 'text-gray-400'}`} /></button>
+                        <button onClick={() => setPreviewVisible(!isPreviewVisible)} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10" aria-label={isPreviewVisible ? 'Hide Preview' : 'Show Preview'}><PlayIcon className={`w-5 h-5 transition-colors ${isPreviewVisible ? 'text-blue-500' : 'text-gray-400'}`} /></button>
+                        <button onClick={() => setConsoleVisible(!isConsoleVisible)} className="p-1.5 text-gray-400 rounded-md hover:text-white hover:bg-white/10" aria-label={isConsoleVisible ? 'Hide Console' : 'Show Console'}><TerminalIcon className={`w-5 h-5 transition-colors ${isConsoleVisible ? 'text-blue-500' : 'text-gray-400'}`} /></button>
                     </div>
                 </header>
 
@@ -204,23 +206,27 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, onGenerat
                        {isExplorerVisible && <FileExplorer files={activeWorkspace.files} activePath={activeFile?.path || ''} onSelect={setActivePath} />}
                     </div>
                     
-                    <div className={`flex-1 h-full font-mono text-sm bg-black overflow-hidden transition-all duration-300 ease-in-out ${isPreviewVisible ? 'w-1/2' : 'w-full'}`}>
-                         <div className="p-4 h-full overflow-auto">
-                            <pre className="h-full w-full"><code ref={codeBlockRef} className="language-html"></code></pre>
-                        </div>
-                    </div>
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        {/* Top area: Editor & Preview */}
+                        <div className="flex-1 flex flex-row overflow-hidden min-h-0">
+                            {/* Editor */}
+                            <div className="flex-1 h-full font-mono text-sm bg-black overflow-hidden">
+                                <div className="p-4 h-full overflow-auto">
+                                    <pre className="h-full w-full"><code ref={codeBlockRef} className="language-html"></code></pre>
+                                </div>
+                            </div>
 
-                    <div ref={previewContainerRef} className={`relative flex flex-col h-full bg-black transition-all duration-300 ease-in-out ${isPreviewVisible ? 'flex-1' : 'w-0'}`}>
-                        {isPreviewVisible && (
-                           <>
-                               <div className="h-1/2 relative bg-black">
-                                   <GamePreview key={refreshKey} files={activeWorkspace.files} />
-                               </div>
-                               <div className="h-1/2 bg-[#0d0d0d] border-t-2 border-gray-800/70">
-                                   <Console logs={logs} onClear={handleClearConsole} />
-                               </div>
-                           </>
-                        )}
+                            {/* Preview */}
+                            <div ref={previewContainerRef} className={`relative flex flex-col h-full bg-black transition-all duration-300 ease-in-out border-l border-gray-800/70 ${isPreviewVisible ? 'flex-1' : 'w-0'}`}>
+                                {isPreviewVisible && (
+                                <GamePreview key={refreshKey} files={activeWorkspace.files} />
+                                )}
+                            </div>
+                        </div>
+                        {/* Bottom area: Console */}
+                        <div className={`bg-[#0d0d0d] overflow-hidden flex flex-col transition-all duration-300 ease-in-out ${isConsoleVisible ? 'h-1/3 max-h-[50vh] border-t-2 border-gray-800/70' : 'h-0'}`}>
+                            {isConsoleVisible && <Console logs={logs} onClear={handleClearConsole} />}
+                        </div>
                     </div>
                 </main>
             </div>
