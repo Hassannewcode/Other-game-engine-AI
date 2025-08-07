@@ -1,7 +1,6 @@
 
-
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage } from '../App';
+import { ChatMessage } from '../types';
 import AIIcon from './icons/AIIcon';
 import SpinnerIcon from './icons/SpinnerIcon';
 import ThumbsUpIcon from './icons/ThumbsUpIcon';
@@ -11,12 +10,12 @@ interface ChatPanelProps {
     history: ChatMessage[];
     isLoading: boolean;
     onSend: (prompt: string) => void;
-    onReset: () => void;
+    onDeleteWorkspace: () => void;
     onPositiveFeedback: (messageId: string) => void;
     onRetry: (prompt: string) => void;
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ history, isLoading, onSend, onReset, onPositiveFeedback, onRetry }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({ history, isLoading, onSend, onDeleteWorkspace, onPositiveFeedback, onRetry }) => {
     const [prompt, setPrompt] = useState('');
     const historyEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -60,7 +59,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, isLoading, onSend, onRes
                             <div className="group relative">
                                 <div className={`text-sm leading-relaxed rounded-lg px-4 py-2 max-w-sm ${msg.role === 'model' ? (msg.isFixable ? 'bg-red-900/50 border border-red-500/30 text-red-200' : 'bg-gray-800/50 text-gray-300') : 'bg-blue-600/80 text-white'}`}>
                                     {msg.text}
-                                    {msg.isFixable && msg.originalPrompt && (
+                                    {msg.role === 'model' && msg.isFixable && msg.originalPrompt && (
                                         <button 
                                             onClick={() => onRetry(msg.originalPrompt!)}
                                             disabled={isLoading}
@@ -104,7 +103,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, isLoading, onSend, onRes
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Describe a change or new feature..."
+                        placeholder="e.g., 'Add enemies that shoot back' or 'create a particle explosion on collision'"
                         className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 pr-20 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
                         rows={3}
                         disabled={isLoading}
@@ -120,10 +119,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, isLoading, onSend, onRes
                     </button>
                 </div>
                 <button 
-                    onClick={onReset} 
+                    onClick={() => {
+                        if (window.confirm("Are you sure you want to delete this workspace? This action cannot be undone.")) {
+                            onDeleteWorkspace();
+                        }
+                    }} 
                     className="text-xs mt-3 w-full text-center p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
                 >
-                    Reset Project
+                    Delete Workspace
                 </button>
             </footer>
         </div>
