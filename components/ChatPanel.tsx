@@ -1,10 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage } from '../types';
+import { ChatMessage, ModelChatMessage } from '../types';
 import AIIcon from './icons/AIIcon';
 import SpinnerIcon from './icons/SpinnerIcon';
 import ThumbsUpIcon from './icons/ThumbsUpIcon';
 import RefreshIcon from './icons/RefreshIcon';
+import ChevronDownIcon from './icons/ChevronDownIcon';
 
 interface ChatPanelProps {
     history: ChatMessage[];
@@ -14,6 +15,23 @@ interface ChatPanelProps {
     onPositiveFeedback: (messageId: string) => void;
     onRetry: (prompt: string) => void;
 }
+
+const ThinkingBlock: React.FC<{ thinking: string }> = ({ thinking }) => (
+    <details className="mt-3 text-xs text-gray-400 border-t border-gray-700/50 pt-2 group">
+        <summary className="cursor-pointer font-medium list-none flex items-center justify-between hover:text-gray-200">
+            <span>AI's Plan</span>
+            <ChevronDownIcon className="w-4 h-4 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="pt-2 font-mono whitespace-pre-wrap leading-relaxed">
+            {thinking}
+        </div>
+    </details>
+);
+
+const isModelMessage = (msg: ChatMessage): msg is ModelChatMessage => {
+    return msg.role === 'model';
+};
+
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ history, isLoading, onSend, onDeleteWorkspace, onPositiveFeedback, onRetry }) => {
     const [prompt, setPrompt] = useState('');
@@ -59,7 +77,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, isLoading, onSend, onDel
                             <div className="group relative">
                                 <div className={`text-sm leading-relaxed rounded-lg px-4 py-2 max-w-sm ${msg.role === 'model' ? (msg.isFixable ? 'bg-red-900/50 border border-red-500/30 text-red-200' : 'bg-gray-800/50 text-gray-300') : 'bg-blue-600/80 text-white'}`}>
                                     {msg.text}
-                                    {msg.role === 'model' && msg.isFixable && msg.originalPrompt && (
+                                    {isModelMessage(msg) && msg.thinking && (
+                                        <ThinkingBlock thinking={msg.thinking} />
+                                    )}
+                                    {isModelMessage(msg) && msg.isFixable && msg.originalPrompt && (
                                         <button 
                                             onClick={() => onRetry(msg.originalPrompt!)}
                                             disabled={isLoading}
@@ -70,7 +91,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ history, isLoading, onSend, onDel
                                         </button>
                                     )}
                                 </div>
-                                {msg.role === 'model' && !msg.rated && !msg.isFixable && (
+                                {isModelMessage(msg) && !msg.rated && !msg.isFixable && (
                                      <button 
                                         onClick={() => onPositiveFeedback(msg.id)}
                                         className="absolute -bottom-4 right-2 p-1 rounded-full bg-gray-700/80 text-gray-400 hover:text-green-400 hover:bg-gray-600 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
