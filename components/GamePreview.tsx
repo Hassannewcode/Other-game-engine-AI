@@ -1,9 +1,32 @@
+
 import React, { useRef, useEffect } from 'react';
 import { FileEntry } from '../types';
 
 interface GamePreviewProps {
     files: FileEntry[];
 }
+
+const mimeTypeMap: { [key: string]: string } = {
+    js: 'text/javascript',
+    css: 'text/css',
+    json: 'application/json',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    svg: 'image/svg+xml',
+    webp: 'image/webp',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
+    mp4: 'video/mp4',
+    webm: 'video/webm',
+    ttf: 'font/ttf',
+    otf: 'font/otf',
+    woff: 'font/woff',
+    woff2: 'font/woff2',
+};
+
 
 const GamePreview: React.FC<GamePreviewProps> = ({ files }) => {
     const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -28,10 +51,8 @@ const GamePreview: React.FC<GamePreviewProps> = ({ files }) => {
             files.forEach(file => {
                 if (file.path === 'index.html') return;
                 
-                let mimeType = 'application/octet-stream';
-                if (file.path.endsWith('.js')) mimeType = 'text/javascript';
-                else if (file.path.endsWith('.css')) mimeType = 'text/css';
-                else if (file.path.endsWith('.json')) mimeType = 'application/json';
+                const extension = file.path.split('.').pop()?.toLowerCase() || '';
+                const mimeType = mimeTypeMap[extension] || 'application/octet-stream';
                 
                 const blob = new Blob([file.content], { type: mimeType });
                 const url = URL.createObjectURL(blob);
@@ -69,18 +90,29 @@ const GamePreview: React.FC<GamePreviewProps> = ({ files }) => {
                 importMapScript.textContent = JSON.stringify(importMap, null, 2);
             }
 
-            // Replace CSS hrefs with their blob URLs
-            doc.querySelectorAll('link[rel="stylesheet"][href]').forEach(link => {
-                const href = link.getAttribute('href');
-                if (href) {
-                    const normalizedHref = href.startsWith('./') ? href.substring(2) : href;
-                    if (assetUrls.has(normalizedHref)) {
-                        link.setAttribute('href', assetUrls.get(normalizedHref)!);
-                    }
-                }
-            });
-
+            // Replace URLs for known asset-loading tags.
             // Note: We DO NOT replace script `src` attributes. The browser will use the import map to resolve them.
+            const selectorsAndAttributes: Record<string, string> = {
+                'link[rel="stylesheet"]': 'href',
+                'img': 'src',
+                'audio': 'src',
+                'video': 'src',
+                'source': 'src',
+                'track': 'src'
+            };
+
+            Object.entries(selectorsAndAttributes).forEach(([selector, attribute]) => {
+                doc.querySelectorAll(selector).forEach(el => {
+                    const value = el.getAttribute(attribute);
+                    if (value && !value.startsWith('data:') && !value.startsWith('http')) {
+                        // Normalize path, removing leading './' or '/'
+                        const normalizedValue = value.startsWith('./') ? value.substring(2) : (value.startsWith('/') ? value.substring(1) : value);
+                        if (assetUrls.has(normalizedValue)) {
+                            el.setAttribute(attribute, assetUrls.get(normalizedValue)!);
+                        }
+                    }
+                });
+            });
 
             const finalHtml = doc.documentElement.outerHTML;
             const finalHtmlBlob = new Blob([finalHtml], { type: 'text/html' });
