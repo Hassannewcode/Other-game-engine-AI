@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import IDEView from './components/IDEView';
 import WorkspaceModal from './components/WorkspaceModal';
 import { getInitialWorkspaceData, createChatFromWorkspace } from './services/geminiService';
-import type { WorkspaceType, Workspace, ChatMessage, UserChatMessage, ModelChatMessage } from './types';
+import type { WorkspaceType, Workspace, ChatMessage, UserChatMessage, ModelChatMessage, FileEntry } from './types';
 import SpinnerIcon from './components/icons/SpinnerIcon';
 
 const generateId = () => `id-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -51,7 +51,7 @@ const extractJsonFromString = (text: string): any | null => {
     }
 };
 
-const STORAGE_KEY = 'ai-game-studio-state-v2';
+const STORAGE_KEY = 'ai-game-studio-state-v3'; // Incremented version for new data structure
 
 const App: React.FC = () => {
     const [workspaces, setWorkspaces] = useState<Record<string, Workspace>>({});
@@ -99,13 +99,13 @@ const App: React.FC = () => {
 
     const handleCreateWorkspace = useCallback((type: WorkspaceType) => {
         try {
-            const { initialCode, initialHistory } = getInitialWorkspaceData(type);
+            const { initialFiles, initialHistory } = getInitialWorkspaceData(type);
             const newId = generateId();
             const newWorkspace: Workspace = {
                 id: newId,
                 name: `${type} Project - ${new Date().toLocaleDateString()}`,
                 type: type,
-                code: initialCode,
+                files: initialFiles,
                 chatHistory: initialHistory,
                 lastModified: Date.now(),
             };
@@ -152,10 +152,10 @@ const App: React.FC = () => {
                 throw new Error('AI returned an invalid or non-JSON response.');
             }
             
-            const { explanation, code } = jsonResponse;
+            const { thinking, explanation, files } = jsonResponse;
 
-            if (typeof code !== 'string') {
-                 throw new Error("AI response is missing the 'code' field or it is not a string.");
+            if (!Array.isArray(files) || files.length === 0 || !files.every((f: any) => f.path && typeof f.content === 'string')) {
+                 throw new Error("AI response is missing the 'files' field or it has an invalid format.");
             }
             
             const modelMessageText = (typeof explanation === 'string' && explanation.trim()) ? explanation : 'Code updated successfully.';
@@ -163,6 +163,7 @@ const App: React.FC = () => {
             const modelMessage: ModelChatMessage = { 
                 id: generateId(), 
                 role: 'model', 
+                thinking: thinking,
                 text: modelMessageText,
                 fullResponse: fullResponseText,
             };
@@ -174,7 +175,7 @@ const App: React.FC = () => {
                     ...prev,
                     [activeWorkspace.id]: {
                         ...currentWs,
-                        code: code,
+                        files: files as FileEntry[],
                         chatHistory: finalHistory,
                         lastModified: Date.now(),
                     }
@@ -262,6 +263,20 @@ const App: React.FC = () => {
             setActiveWorkspaceId(null);
         }
     }, [workspaces, activeWorkspaceId]);
+    
+    const handleUpdateFileContent = useCallback((path: string, content: string) => {
+        if (!activeWorkspace) return;
+        
+        const newFiles = activeWorkspace.files.map(file => 
+            file.path === path ? { ...file, content } : file
+        );
+
+        setWorkspaces(prev => ({
+            ...prev,
+            [activeWorkspace.id]: { ...prev[activeWorkspace.id], files: newFiles, lastModified: Date.now() }
+        }));
+
+    }, [activeWorkspace]);
 
     const handleReturnToLauncher = useCallback(() => {
         setActiveWorkspaceId(null);
@@ -297,6 +312,7 @@ const App: React.FC = () => {
                 onRenameWorkspace={handleRenameWorkspace}
                 onDeleteWorkspace={() => handleDeleteWorkspace(activeWorkspace.id)}
                 onReturnToLauncher={handleReturnToLauncher}
+                onUpdateFileContent={handleUpdateFileContent}
             />
         </div>
     );
