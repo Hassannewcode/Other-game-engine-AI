@@ -36,35 +36,6 @@ interface IDEViewProps {
     onUpdateFileContent: (path: string, content: string) => void;
 }
 
-const bundleForPreview = (files: FileEntry[]): string => {
-    const indexHtmlFile = files.find(f => f.path === 'index.html');
-    if (!indexHtmlFile) return '<h1>Error: index.html not found.</h1>';
-
-    let htmlContent = indexHtmlFile.content;
-
-    const scriptRegex = /<script\s+(.*?)\s*src=["'](.*?)["'](.*?)>\s*<\/script>/gi;
-    htmlContent = htmlContent.replace(scriptRegex, (match, pre, src, post) => {
-        const file = files.find(f => f.path === src || `./${f.path}` === src);
-        if (file) {
-            return `<script ${pre} ${post}>\n// Original src: ${src}\n${file.content}\n</script>`;
-        }
-        return match; // Keep original if file not found
-    });
-
-    const cssRegex = /<link\s+.*?href=["'](.*?)["'].*?>/gi;
-    htmlContent = htmlContent.replace(cssRegex, (match, href) => {
-        if (!href.endsWith('.css')) return match;
-        const file = files.find(f => f.path === href || `./${f.path}` === href);
-        if (file) {
-            return `<style>\n/* Original href: ${href} */\n${file.content}\n</style>`;
-        }
-        return match;
-    });
-
-    return htmlContent;
-};
-
-
 const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, onGenerate, onPositiveFeedback, onRetry, onRenameWorkspace, onDeleteWorkspace, onReturnToLauncher, onUpdateFileContent }) => {
     const [isChatVisible, setChatVisible] = useState(true);
     const [isExplorerVisible, setExplorerVisible] = useState(true);
@@ -243,7 +214,7 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, onGenerat
                         {isPreviewVisible && (
                            <>
                                <div className="h-1/2 relative bg-black">
-                                   <GamePreview key={refreshKey} htmlContent={bundleForPreview(activeWorkspace.files)} />
+                                   <GamePreview key={refreshKey} files={activeWorkspace.files} />
                                </div>
                                <div className="h-1/2 bg-[#0d0d0d] border-t-2 border-gray-800/70">
                                    <Console logs={logs} onClear={handleClearConsole} />
