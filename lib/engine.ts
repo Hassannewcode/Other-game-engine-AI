@@ -78,6 +78,29 @@ export const getEngineScript = (workspaceType: WorkspaceType): string => {
         let onUpdateCallback = (deltaTime) => {};
         let lastTime = 0;
         const state = new Map();
+        
+        const assetCache = {};
+        const loadingAssets = new Set();
+
+        function loadImage(url) {
+            if (assetCache[url]) {
+                return assetCache[url];
+            }
+            if (!loadingAssets.has(url)) {
+                loadingAssets.add(url);
+                const img = new Image();
+                img.onload = () => {
+                    assetCache[url] = img;
+                    loadingAssets.delete(url);
+                };
+                img.onerror = () => {
+                    console.error('Failed to load image: ' + url);
+                    loadingAssets.delete(url);
+                }
+                img.src = url;
+            }
+            return null;
+        }
 
         const camera = {
             x: 0,
@@ -119,9 +142,12 @@ export const getEngineScript = (workspaceType: WorkspaceType): string => {
             setData: (key, value) => state.set(key, value),
             getData: (key) => state.get(key),
             create: {
-                sprite: ({ x = 0, y = 0, width = 20, height = 20, asset = 'default', properties = {} }) => {
+                sprite: ({ x = 0, y = 0, width = 20, height = 20, asset = 'default', imageUrl = null, color = null, properties = {} }) => {
+                    if (imageUrl) {
+                        loadImage(imageUrl);
+                    }
                     const colorMap = { player: 'skyblue', enemy: 'tomato', platform: 'lightgreen', coin: 'gold', default: 'white' };
-                    const sprite = { id: Math.random(), x, y, width, height, asset, color: colorMap[asset] || colorMap.default, ...properties };
+                    const sprite = { id: Math.random(), x, y, width, height, asset, imageUrl, color: color || colorMap[asset] || colorMap.default, ...properties };
                     sprites.push(sprite);
                     return sprite;
                 },
@@ -196,8 +222,13 @@ export const getEngineScript = (workspaceType: WorkspaceType): string => {
             onUpdateCallback(deltaTime);
             
             sprites.forEach(sprite => {
-                ctx.fillStyle = sprite.color;
-                ctx.fillRect(sprite.x, sprite.y, sprite.width, sprite.height);
+                if (sprite.imageUrl && assetCache[sprite.imageUrl]) {
+                    const img = assetCache[sprite.imageUrl];
+                    ctx.drawImage(img, sprite.x, sprite.y, sprite.width, sprite.height);
+                } else {
+                    ctx.fillStyle = sprite.color;
+                    ctx.fillRect(sprite.x, sprite.y, sprite.width, sprite.height);
+                }
             });
 
             particles.forEach(p => {
@@ -304,24 +335,32 @@ export const getEngineScript = (workspaceType: WorkspaceType): string => {
             setData: (key, value) => state.set(key, value),
             getData: (key) => state.get(key),
             create: {
-                mesh: ({ geometry = 'box', material = 'normal', position = [0,0,0], properties = {} }) => {
+                mesh: ({ geometry = 'box', material = 'normal', color = 0xcccccc, textureUrl = null, position = [0,0,0], scale = [1,1,1], properties = {} }) => {
                     let geom;
                     switch(geometry) {
                         case 'sphere': geom = new THREE.SphereGeometry(0.5, 32, 16); break;
                         case 'capsule': geom = new THREE.CapsuleGeometry(0.5, 0.5, 16, 8); break;
-                        case 'plane': geom = new THREE.PlaneGeometry(10, 10); break;
+                        case 'plane': geom = new THREE.PlaneGeometry(1, 1); break;
                         case 'box': default: geom = new THREE.BoxGeometry(1, 1, 1); break;
                     }
                     
                     let mat;
+                    const matParams = { color };
+                    if (textureUrl) {
+                        const textureLoader = new THREE.TextureLoader();
+                        matParams.map = textureLoader.load(textureUrl);
+                    }
+
                     switch(material) {
-                        case 'phong': mat = new THREE.MeshPhongMaterial({ color: 0xcccccc }); break;
-                        case 'lambert': mat = new THREE.MeshLambertMaterial({ color: 0xcccccc }); break;
+                        case 'phong': mat = new THREE.MeshPhongMaterial(matParams); break;
+                        case 'lambert': mat = new THREE.MeshLambertMaterial(matParams); break;
+                        case 'standard': mat = new THREE.MeshStandardMaterial(matParams); break;
                         case 'normal': default: mat = new THREE.MeshNormalMaterial(); break;
                     }
 
                     const mesh = new THREE.Mesh(geom, mat);
                     mesh.position.set(...position);
+                    mesh.scale.set(...scale);
                     Object.assign(mesh.userData, properties);
                     scene.add(mesh);
                     meshes.push(mesh);
@@ -348,11 +387,18 @@ export const getEngineScript = (workspaceType: WorkspaceType): string => {
                 }
             },
             destroy: (object3D) => {
+                if (!object3D) return;
                 if (object3D.geometry) object3D.geometry.dispose();
-                if (object3D.material && Array.isArray(object3D.material)) {
-                    object3D.material.forEach(m => m.dispose());
-                } else if (object3D.material) {
-                    object3D.material.dispose();
+                if (object3D.material) {
+                     if (Array.isArray(object3D.material)) {
+                        object3D.material.forEach(m => {
+                            if (m.map) m.map.dispose();
+                            m.dispose()
+                        });
+                     } else {
+                        if (object3D.material.map) object3D.material.map.dispose();
+                        object3D.material.dispose();
+                     }
                 }
                 scene.remove(object3D);
                 meshes = meshes.filter(m => m !== object3D);
@@ -369,16 +415,18 @@ export const getEngineScript = (workspaceType: WorkspaceType): string => {
                     cameraTarget = meshToFollow;
                     cameraOffset.set(...offset);
                 },
-                lookAt: (x, y, z) => {
+                lookAt: (target) => { // target can be a Vector3 or an array [x, y, z]
                     cameraTarget = null;
-                    camera.lookAt(x, y, z);
+                    if (Array.isArray(target)) {
+                       camera.lookAt(new THREE.Vector3(...target));
+                    } else {
+                       camera.lookAt(target);
+                    }
                 }
             },
             physics: {
                 checkCollision: (meshA, meshB) => {
                     if (!meshA || !meshB) return false;
-                    meshA.geometry.computeBoundingBox();
-                    meshB.geometry.computeBoundingBox();
                     const boxA = new THREE.Box3().setFromObject(meshA);
                     const boxB = new THREE.Box3().setFromObject(meshB);
                     return boxA.intersectsBox(boxB);
