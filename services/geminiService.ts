@@ -142,9 +142,7 @@ Engine.onUpdate((deltaTime) => {
 ${engineScript}
 // --- End Engine ---
     </script>
-    <script type="module" src="./game.js" id="game-logic">
-// This script is loaded from game.js
-    </script>
+    <script type="module" src="./game.js" id="game-logic"></script>
 </body>
 </html>`;
 
