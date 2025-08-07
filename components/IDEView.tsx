@@ -6,7 +6,7 @@ import PlayIcon from './icons/PlayIcon';
 import AIIcon from './icons/AIIcon';
 import GamePreview from './GamePreview';
 import ChatPanel from './ChatPanel';
-import { Workspace, FileEntry } from '../types';
+import { Workspace, FileEntry, LogEntry } from '../types';
 import RefreshIcon from './icons/RefreshIcon';
 import FullscreenIcon from './icons/FullscreenIcon';
 import DownloadIcon from './icons/DownloadIcon';
@@ -15,6 +15,7 @@ import PencilIcon from './icons/PencilIcon';
 import ArrowLeftIcon from './icons/ArrowLeftIcon';
 import FileExplorer from './FileExplorer';
 import PanelLeftIcon from './icons/PanelLeftIcon';
+import Console from './Console';
 
 
 declare global {
@@ -72,6 +73,7 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, onGenerat
     const previewContainerRef = useRef<HTMLDivElement>(null);
     const codeBlockRef = useRef<HTMLElement>(null);
     const [activePath, setActivePath] = useState('game.js');
+    const [logs, setLogs] = useState<LogEntry[]>([]);
 
     const [isEditingName, setIsEditingName] = useState(false);
     const [workspaceName, setWorkspaceName] = useState(activeWorkspace.name);
@@ -89,6 +91,27 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, onGenerat
             setActivePath(activeWorkspace.files.find(f => f.path === 'game.js')?.path || 'index.html');
         }
     }, [activeWorkspace.files, activePath]);
+
+    useEffect(() => {
+        const handleMessage = (event: MessageEvent) => {
+            if (event.data?.type === 'console' && event.data?.payload) {
+                const { type, message } = event.data.payload;
+                if (typeof type === 'string' && typeof message === 'string') {
+                    setLogs(prevLogs => [...prevLogs.slice(-200), { type, message }]);
+                }
+            }
+        };
+
+        window.addEventListener('message', handleMessage);
+
+        return () => {
+            window.removeEventListener('message', handleMessage);
+        };
+    }, []);
+
+    const handleClearConsole = useCallback(() => {
+        setLogs([]);
+    }, []);
 
 
     useEffect(() => {
@@ -130,7 +153,10 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, onGenerat
         }
     }
 
-    const handleRefresh = () => setRefreshKey(prevKey => prevKey + 1);
+    const handleRefresh = () => {
+        setLogs([]);
+        setRefreshKey(prevKey => prevKey + 1);
+    }
 
     const handleToggleFullscreen = useCallback(() => {
         if (!previewContainerRef.current) return;
@@ -213,9 +239,16 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, onGenerat
                         </div>
                     </div>
 
-                    <div ref={previewContainerRef} className={`relative h-full bg-black transition-all duration-300 ease-in-out ${isPreviewVisible ? 'flex-1' : 'w-0'}`}>
+                    <div ref={previewContainerRef} className={`relative flex flex-col h-full bg-black transition-all duration-300 ease-in-out ${isPreviewVisible ? 'flex-1' : 'w-0'}`}>
                         {isPreviewVisible && (
-                           <GamePreview key={refreshKey} htmlContent={bundleForPreview(activeWorkspace.files)} />
+                           <>
+                               <div className="h-1/2 relative bg-black">
+                                   <GamePreview key={refreshKey} htmlContent={bundleForPreview(activeWorkspace.files)} />
+                               </div>
+                               <div className="h-1/2 bg-[#0d0d0d] border-t-2 border-gray-800/70">
+                                   <Console logs={logs} onClear={handleClearConsole} />
+                               </div>
+                           </>
                         )}
                     </div>
                 </main>
