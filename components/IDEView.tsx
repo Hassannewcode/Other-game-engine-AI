@@ -44,7 +44,7 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, onGenerat
     const [refreshKey, setRefreshKey] = useState(0);
     const previewContainerRef = useRef<HTMLDivElement>(null);
     const codeBlockRef = useRef<HTMLElement>(null);
-    const [activePath, setActivePath] = useState('game.js');
+    const [activePath, setActivePath] = useState('scripts/game.js');
     const [logs, setLogs] = useState<LogEntry[]>([]);
 
     const [isEditingName, setIsEditingName] = useState(false);
@@ -53,14 +53,14 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, onGenerat
     
     const activeFile = useMemo(() => {
         const file = activeWorkspace.files.find(f => f.path === activePath);
-        // Fallback to index.html or first file if active file is not found
-        return file || activeWorkspace.files.find(f => f.path === 'index.html') || activeWorkspace.files[0];
+        // Fallback to a common default or the first file if the active one isn't found
+        return file || activeWorkspace.files.find(f => f.path === 'scripts/game.js') || activeWorkspace.files.find(f => f.path === 'index.html') || activeWorkspace.files[0];
     }, [activePath, activeWorkspace.files]);
 
     useEffect(() => {
         // Ensure activePath is valid, reset if not
         if (!activeWorkspace.files.some(f => f.path === activePath)) {
-            setActivePath(activeWorkspace.files.find(f => f.path === 'game.js')?.path || 'index.html');
+            setActivePath(activeWorkspace.files.find(f => f.path === 'scripts/game.js')?.path || 'index.html');
         }
     }, [activeWorkspace.files, activePath]);
 
@@ -85,14 +85,20 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, onGenerat
         setLogs([]);
     }, []);
 
+    const handleAutoFixRequest = useCallback((errorMessage: string) => {
+        if (isLoading) return;
+        const fixPrompt = `[VIBECODE_FIX_REQUEST] My game crashed with the following error. Please analyze the code and fix it.\n\nError:\n${errorMessage}`;
+        onGenerate(fixPrompt);
+    }, [onGenerate, isLoading]);
+
 
     useEffect(() => {
-        if (codeBlockRef.current && window.hljs) {
+        if (codeBlockRef.current && window.hljs && activeFile) {
             // Set language class for syntax highlighting
-            const extension = activeFile?.path.split('.').pop() || 'html';
-            const lang = { js: 'javascript', css: 'css', html: 'html', json: 'json', md: 'markdown' }[extension] || 'plaintext';
+            const extension = activeFile.path.split('.').pop() || 'html';
+            const lang = { js: 'javascript', css: 'css', html: 'html', json: 'json', md: 'markdown', svg: 'xml' }[extension] || 'plaintext';
             codeBlockRef.current.className = `language-${lang}`;
-            codeBlockRef.current.textContent = activeFile?.content || '';
+            codeBlockRef.current.textContent = activeFile.content || '';
             window.hljs.highlightElement(codeBlockRef.current);
         }
     }, [activeFile]);
@@ -225,7 +231,7 @@ const IDEView: React.FC<IDEViewProps> = ({ activeWorkspace, isLoading, onGenerat
                         </div>
                         {/* Bottom area: Console */}
                         <div className={`bg-[#0d0d0d] overflow-hidden flex flex-col transition-all duration-300 ease-in-out ${isConsoleVisible ? 'h-1/3 max-h-[50vh] border-t-2 border-gray-800/70' : 'h-0'}`}>
-                            {isConsoleVisible && <Console logs={logs} onClear={handleClearConsole} />}
+                            {isConsoleVisible && <Console logs={logs} onClear={handleClearConsole} onAutoFix={handleAutoFixRequest} />}
                         </div>
                     </div>
                 </main>
